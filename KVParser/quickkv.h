@@ -22,6 +22,7 @@ class CKeyValue
 public:
 
 	char* key;
+	size_t keyLength;
 
 	union
 	{
@@ -29,11 +30,15 @@ public:
 		CKeyValue* children;
 	};
 
-	int childCount;
+	union
+	{
+		size_t childCount;
+		size_t valueLength;
+	};
+
 	bool hasChild;
 
 	CKeyValue* parent;
-
 };
 
 class CKeyValueRoot : public CKeyValue

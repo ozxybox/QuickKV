@@ -118,7 +118,7 @@ startOfFunction:
 	parent->childCount = currentKV->childCount;
 
 startOfLoop:
-	int& i = parent->childCount;
+	size_t& i = parent->childCount;
 	for (kvObject_t* kvObj = currentKV->child; i--; kvObj = kvObj->previous)
 	{
 		CKeyValue* currentKid = &parent->children[i];
@@ -128,6 +128,7 @@ startOfLoop:
 		lastPointer[kvObj->keyLength] = 0;
 
 		currentKid->key = lastPointer;
+		currentKid->keyLength = kvObj->keyLength;
 		lastPointer += kvObj->keyLength + 1;
 
 		if (kvObj->hasChildren)
@@ -162,6 +163,8 @@ startOfLoop:
 			lastPointer[kvObj->valueLength] = 0;
 
 			currentKid->value = lastPointer;
+			currentKid->valueLength = kvObj->valueLength;
+
 			lastPointer += kvObj->valueLength + 1;
 
 			currentKid->hasChild = false;
