@@ -183,10 +183,10 @@ startOfLoop:
 	}
 }
 
-//checks if the char isn't a " } { and is a letter number or symbol
+//checks if the char isn't a " } { or whitespace
 inline bool IsValidQuoteless(char c)
 {
-	return c > ' ' && c != '"' && c != '{' && c != '}' && c < 127;
+	return ( c >= '!' && c <= '~' ) && c != '"' && c != '{' && c != '}';
 }
 
 void ParseString(const char* string, CKeyValueInfo& info, kvObject_t* parent)
@@ -275,6 +275,7 @@ startOfFunction:
 			info.bytesUsed += length + 1;
 
 			continue;
+
 		case '{':
 
 			if (currentKv && currentKv->key)
@@ -332,41 +333,38 @@ startOfFunction:
 		}
 
 		//WOW we hit something that wasn't a space and wasn't and of our specific symbols
-		//gotta be a quoteless string
-		if (IsValidQuoteless(string[info.pos]))
+		//it HAS TO BE a quoteless string
+
+		int start = info.pos;
+		info.pos++;
+		for (; info.pos < info.length && IsValidQuoteless(string[info.pos]); info.pos++);
+		int length = info.pos - start;
+
+		if (currentKv && currentKv->key)
 		{
-			int start = info.pos;
-			info.pos++;
-			for (; info.pos < info.length && IsValidQuoteless(string[info.pos]); info.pos++);
-			int length = info.pos - start;
+			//set the value
+			currentKv->value = string + start;
+			currentKv->valueLength = length;
 
-			if (currentKv && currentKv->key)
-			{
-				//set the value
-				currentKv->value = string + start;
-				currentKv->valueLength = length;
+			currentKv->hasChildren = false;
 
-				currentKv->hasChildren = false;
+			parent->childCount++;
 
-				parent->childCount++;
-
-				lastKv = currentKv;
-				currentKv = 0;
-				info.keyvaluesUsed++;
-			}
-			else
-			{
-				currentKv = info.NewKVObject();
-				currentKv->previous = lastKv;
-				//set the key
-				currentKv->key = string + start;
-				currentKv->keyLength = length;
-			}
-
-			info.bytesUsed += length + 1;
+			lastKv = currentKv;
+			currentKv = 0;
+			info.keyvaluesUsed++;
+		}
+		else
+		{
+			currentKv = info.NewKVObject();
+			currentKv->previous = lastKv;
+			//set the key
+			currentKv->key = string + start;
+			currentKv->keyLength = length;
 		}
 
-
+		info.bytesUsed += length + 1;
+		
 	}
 	parent->child = lastKv;
 	return;
