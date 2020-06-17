@@ -4,6 +4,7 @@
 #pragma once
 #endif
 
+#include <stddef.h>
 
 enum class ParseStatus
 {
