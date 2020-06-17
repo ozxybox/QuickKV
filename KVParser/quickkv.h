@@ -1,8 +1,4 @@
-#ifndef QUICKKV_H
-#define QUICKKV_H
-#ifdef WIN32
 #pragma once
-#endif
 
 #include <stddef.h>
 
@@ -57,5 +53,4 @@ private:
 };
 
 
-#endif
 
