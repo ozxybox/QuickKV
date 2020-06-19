@@ -77,9 +77,6 @@ public:
 
 	int pos;
 	const int length;
-	int lineNumber;
-	int rowStart;
-	ParseStatus status;
 	CKeyValueMemoryPool* currentPool;
 	//tally up the bytes and kvs used so that we can allocate a mega block later
 	size_t bytesUsed;
@@ -199,14 +196,7 @@ startOfFunction:
 	{
 
 		//skip over all whitespace
-		for (char c = string[info.pos]; info.pos < info.length && (c < '!' || c > '~'); c = string[++info.pos])
-		{
-			if (c == '\n')
-			{
-				info.lineNumber++;
-				info.rowStart = info.pos;
-			}
-		}
+		for (char c = string[info.pos]; info.pos < info.length && (c < '!' || c > '~'); c = string[++info.pos]);
 
 		//TODO error handling
 		if (info.pos >= info.length)
@@ -220,35 +210,8 @@ startOfFunction:
 
 			start = info.pos;
 
-		startQuoteLoop:
-			switch (string[info.pos])
-			{
-			case '"':
-				if (string[info.pos - 1] == '\\')
-				{
-					info.pos++;
-					goto startQuoteLoop;
-				}
-				break;
-			case '\n':
-				info.status = ParseStatus::HIT_END_LINE_IN_STRING;
-				return;
-			default:
-				info.pos++;
-				goto startQuoteLoop;
-			}
+			for (; info.pos < info.length && string[info.pos] != '"'; info.pos++);
 
-			/*
-			for (char c = string[info.pos]; info.pos < info.length && !((c == '"') && (c != '\\')); c = string[++info.pos])
-			{
-				if (c == '\n')
-				{
-					info.status = ParseStatus::HIT_END_LINE_IN_STRING;
-					return;
-				}
-			}
-
-			*/
 			length = info.pos - start;
 
 			if (currentKv && currentKv->key)
@@ -290,7 +253,7 @@ startOfFunction:
 			}
 			else
 			{
-				info.status = ParseStatus::HIT_SUBKEY_IN_KEY;
+				//info.status = ParseStatus::HIT_SUBKEY_IN_KEY;
 				return;
 			}
 
@@ -307,7 +270,7 @@ startOfFunction:
 			}
 			else
 			{
-				info.status = ParseStatus::HIT_END_BLOCK_ON_ROOT;
+				//info.status = ParseStatus::HIT_END_BLOCK_ON_ROOT;
 				return;
 			}
 
@@ -315,21 +278,9 @@ startOfFunction:
 
 		case '/':
 
-			info.pos++;
-			switch (string[info.pos])
-			{
-			case '/':
+			if (string[++info.pos])
+				for (info.pos++; info.pos < info.length && string[info.pos] != '\n'; info.pos++);
 
-				//skip until endline and breakout 
-				for (; info.pos < info.length && string[info.pos] != '\n'; info.pos++);
-
-				continue;
-			case '*':
-
-				//skip until end of multiline commment
-				for (; info.pos < info.length && !(string[info.pos] == '/' && string[info.pos - 1] == '*'); info.pos++);
-				continue;
-			}
 		}
 
 		//WOW we hit something that wasn't a space and wasn't and of our specific symbols
@@ -375,22 +326,14 @@ startOfFunction:
 CKeyValueRoot* CKeyValueRoot::Parse(char* string, int length)
 {
 	//convient way to share variables
-	CKeyValueInfo info{ 0,length,0,0,ParseStatus::GOOD };
+	CKeyValueInfo info{ 0,length,0,0 };
 
 	info.currentPool = new CKeyValueMemoryPool(POOL_MAX_COUNT_INCREMENT, 0);
 
 	kvObject_t parent{ 0,0 };
 	ParseString(string, info, &parent);
 
-	//return the status somehow?
-	if (info.status != ParseStatus::GOOD)
-	{
-
-		CKeyValueMemoryPool::Delete(info.currentPool);
-
-		return nullptr;
-	}
-
+	
 	//we've counted up all of our objects that need allocation
 	//allocate them now
 	char* memoryBlock = static_cast<char*>(malloc(info.bytesUsed));

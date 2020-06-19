@@ -5,16 +5,7 @@
 #endif
 
 
-enum class ParseStatus
-{
-	GOOD = 0,
-	BROKEN,
-	HIT_END_BLOCK_ON_ROOT,
-	HIT_END_LINE_IN_STRING,
-	HIT_SUBKEY_IN_KEY,
-	HIT_UNEXPECTED_END_BLOCK,
 
-};
 
 
 class CKeyValue
