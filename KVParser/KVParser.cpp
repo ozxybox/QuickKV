@@ -26,23 +26,24 @@ char* ReadFile(const char* path, int& len)
 
 
 
-void printKV(const CKeyValue* parent, const int tabCount)
+void printKV(const kvObject_t* parent, const int tabCount)
 {
-	if (!parent->hasChild || parent->childCount == 0)
+	if (!parent->hasChildren || parent->childCount == 0)
 		return;
 
 	int i = 0;
 	if (!parent->key)
 		i = 0;// parent->childCount - 10;
-	for (; i < parent->childCount; i++)
+	
+	
+	for (kvObject_t* kv = parent->child; kv; kv = kv->next)
 	{
-		CKeyValue* kv = &parent->children[i];
-
+		
 		for (int j = 0; j < tabCount; j++) std::cout << '\t';
 
 		if (kv->key)
 			std::cout << "\"" << kv->key << "\"";
-		if (kv->hasChild)
+		if (kv->hasChildren)
 		{
 			std::cout << "\n";
 			for (int j = 0; j < tabCount; j++) std::cout << '\t';
@@ -58,6 +59,8 @@ void printKV(const CKeyValue* parent, const int tabCount)
 			if (kv->value)
 				std::cout << " \"" << kv->value << "\"\n";
 		}
+
+		
 	}
 }
 
@@ -66,32 +69,55 @@ int main(int argc, char* argv[])
 	int len = 0;
 	char* buf = ReadFile(argv[1], len);
 
+
+	int bestParseTime = INT32_MAX;
+	int worstParseTime = INT32_MIN;
+	int bestDeleteTime = INT32_MAX;
+	int worstDeleteTime = INT32_MIN;
+
+
 	int parseTotalTime = 0;
 	int deleteTotalTime = 0;
 	clock_t t;
-	int count = 10000;
+	int count = 3000;
 	std::cout.flush();
+	int time;
 	for (int i = 0; i < count; i++)
 	{
 		t = clock();
-		CKeyValueRoot* kv = CKeyValueRoot::Parse(buf, len);
-		parseTotalTime += clock() - t;
+		CKeyValueRoot* kvr = CKeyValueRoot::Parse(buf, len);
+		time = clock() - t;
+		parseTotalTime += time;
+		if (time < bestParseTime)
+			bestParseTime = time;
+		else if (time > worstParseTime)
+			worstParseTime = time;
 		
-		//printKV(kv, 0);
+		//printKV(&kv, 0);
 		
 		t = clock();
-		delete kv;
-		deleteTotalTime += clock() - t;
+		delete kvr;
+		time = clock() - t;
+		deleteTotalTime += time;
+		if (time < bestDeleteTime)
+			bestDeleteTime = time;
+		else if (time > worstDeleteTime)
+			worstDeleteTime = time;
 		std::cout << i << "/" << count << "\n";
 	}
 
 	delete[] buf;
 
-	std::cout << "==times taken on " << argv[1] << "==\n";
-	std::cout << "Over " << count << " parses, it took an average of\n\n";
-
-	std::cout << (((float)parseTotalTime) / count) << " clock() ticks to parse\n\n";
-
-	std::cout << (((float)deleteTotalTime) / count) << " clock() ticks to delete\n";
+	std::cout << "==times taken on " << count << " parses of " << argv[1] << "==\n";
+	std::cout << "\n";
+	std::cout << "Parsing\n";
+	std::cout << "\tBest:" << bestParseTime << " clock() ticks\n";
+	std::cout << "\tWorst:" << worstParseTime << " clock() ticks\n";
+	std::cout << "\tAverage:" << (((float)parseTotalTime) / count) << " clock() ticks\n";
+	std::cout << "\n\n";
+	std::cout << "Deleting\n";
+	std::cout << "\tBest:" << bestDeleteTime << " clock() ticks\n";
+	std::cout << "\tWorst:" << worstDeleteTime << " clock() ticks\n";
+	std::cout << "\tAverage:" << (((float)deleteTotalTime) / count) << " clock() ticks\n";
 
 }
