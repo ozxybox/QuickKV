@@ -79,13 +79,17 @@ int main(int argc, char* argv[])
 	int parseTotalTime = 0;
 	int deleteTotalTime = 0;
 	clock_t t;
-	int count = 3000;
+	int count = 1000;
 	std::cout.flush();
 	int time;
 	for (int i = 0; i < count; i++)
 	{
+
+		char* input = new char[len];
+		memcpy(input, buf, len);
+
 		t = clock();
-		CKeyValueRoot* kvr = CKeyValueRoot::Parse(buf, len);
+		CKeyValueRoot* kvr = CKeyValueRoot::Parse(input, len);
 		time = clock() - t;
 		parseTotalTime += time;
 		if (time < bestParseTime)
@@ -93,16 +97,20 @@ int main(int argc, char* argv[])
 		else if (time > worstParseTime)
 			worstParseTime = time;
 		
-		//printKV(&kv, 0);
+		//printKV(&kvr->rootKV, 0);
 		
 		t = clock();
 		delete kvr;
 		time = clock() - t;
+
 		deleteTotalTime += time;
 		if (time < bestDeleteTime)
 			bestDeleteTime = time;
 		else if (time > worstDeleteTime)
 			worstDeleteTime = time;
+		
+		delete[] input;
+
 		std::cout << i << "/" << count << "\n";
 	}
 

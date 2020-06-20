@@ -5,13 +5,13 @@
 
 struct kvObject_t
 {
-	const char* key;
+	char* key;
 	int keyLength;
 
 	union
 	{
 		kvObject_t* child;
-		const char* value;
+		char* value;
 	};
 
 	union
@@ -51,7 +51,6 @@ public:
 	kvObject_t rootKV;
 private:
 	
-	char* memoryBlock;
 	CKeyValueMemoryPool* currentPool;
 
 };
