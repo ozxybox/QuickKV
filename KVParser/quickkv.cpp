@@ -10,41 +10,7 @@
 
 #define POOL_MAX_COUNT_INCREMENT 16
 
-struct kvObject_t
-{
-	const char* key;
-	int keyLength;
 
-	union
-	{
-		kvObject_t* child;
-		const char* value;
-	};
-
-	union
-	{
-		int childCount;
-		int valueLength;
-	};
-
-	bool hasChildren;
-
-	kvObject_t* parent;
-	kvObject_t* previous;
-};
-
-
-class CKeyValueMemoryPool
-{
-public:
-	inline CKeyValueMemoryPool(int size, CKeyValueMemoryPool* last);
-	static void Delete(CKeyValueMemoryPool* last);
-
-	int maxObjectsInPool;
-	int objectCount;
-	kvObject_t* memoryPool;
-	CKeyValueMemoryPool* lastPool;
-};
 
 inline CKeyValueMemoryPool::CKeyValueMemoryPool(int size, CKeyValueMemoryPool* last)
 {
@@ -80,7 +46,6 @@ public:
 	CKeyValueMemoryPool* currentPool;
 	//tally up the bytes and kvs used so that we can allocate a mega block later
 	size_t bytesUsed;
-	size_t keyvaluesUsed;
 };
 
 kvObject_t* CKeyValueInfo::NewKVObject()
@@ -101,52 +66,36 @@ startOfFunction:
 
 
 
-void BuildData(CKeyValue* parent, kvObject_t* currentKV, char* lastPointer, CKeyValue* lastKeyValueBlock)
+void BuildData(kvObject_t* currentKV, char* lastPointer)
 {
 startOfFunction:
-	//allocate the correct ammount of data for the children
-	if (currentKV->childCount)
-	{
-		parent->children = lastKeyValueBlock;
-		lastKeyValueBlock += currentKV->childCount;
-	}
-	parent->hasChild = true;
-
-	parent->childCount = currentKV->childCount;
+	currentKV->lastChild = currentKV->child;
 
 startOfLoop:
-	size_t& i = parent->childCount;
-	for (kvObject_t* kvObj = currentKV->child; i--; kvObj = kvObj->previous)
+	for (kvObject_t* kvObj = currentKV->lastChild; kvObj ; kvObj = kvObj->next)
 	{
-		CKeyValue* currentKid = &parent->children[i];
-
+		
 		//copy the the key from the string to the memory block and assign the key to the address in the block
 		memcpy(lastPointer, kvObj->key, kvObj->keyLength);
 		lastPointer[kvObj->keyLength] = 0;
 
-		currentKid->key = lastPointer;
-		currentKid->keyLength = kvObj->keyLength;
+		kvObj->key = lastPointer;
+
 		lastPointer += kvObj->keyLength + 1;
 
 		if (kvObj->hasChildren)
 		{
-			//set the parent so we can restore it later
-			currentKid->parent = parent;
-
 
 			//the child count is empty so let's take a shortcut
 			if (kvObj->childCount == 0)
 			{
-				currentKid->hasChild = true;
-				currentKid->childCount = 0;
 				continue;
 			}
 
 
 			//lower the arguments by one level and jump to the top
 			//cheap recursion lol
-			parent = currentKid;
-			currentKV->child = kvObj->previous;
+			currentKV->lastChild = kvObj->next;
 			currentKV = kvObj;
 
 
@@ -159,21 +108,17 @@ startOfLoop:
 			memcpy(lastPointer, kvObj->value, kvObj->valueLength);
 			lastPointer[kvObj->valueLength] = 0;
 
-			currentKid->value = lastPointer;
-			currentKid->valueLength = kvObj->valueLength;
+			kvObj->value = lastPointer;
 
 			lastPointer += kvObj->valueLength + 1;
 
-			currentKid->hasChild = false;
 		}
 	}
 
-	parent->childCount = currentKV->childCount;
 
-	if (parent->key)
+	if (currentKV->key)
 	{
 		//restore i, parent, and curKV
-		parent = parent->parent;
 		currentKV = currentKV->parent;
 		//attempt to return back to where we were
 		goto startOfLoop;
@@ -224,12 +169,17 @@ startOfFunction:
 				parent->childCount++;
 				lastKv = currentKv;
 				currentKv = 0;
-				info.keyvaluesUsed++;
 			}
 			else
 			{
+
 				currentKv = info.NewKVObject();
-				currentKv->previous = lastKv;
+				if (lastKv)
+					lastKv->next = currentKv;
+				else
+					parent->child = currentKv;
+
+
 				//set the key
 				currentKv->key = string + start;
 				currentKv->keyLength = length;
@@ -262,11 +212,11 @@ startOfFunction:
 
 			if (parent->key)
 			{
-				parent->child = lastKv;
+				if(lastKv)
+					lastKv->next = nullptr;
 				lastKv = parent;
 				parent = lastKv->parent;
 				parent->childCount++;
-				info.keyvaluesUsed++;
 			}
 			else
 			{
@@ -303,12 +253,15 @@ startOfFunction:
 
 			lastKv = currentKv;
 			currentKv = 0;
-			info.keyvaluesUsed++;
 		}
 		else
 		{
 			currentKv = info.NewKVObject();
-			currentKv->previous = lastKv;
+			if (lastKv)
+				lastKv->next = currentKv; 
+			else
+				parent->child = currentKv;
+
 			//set the key
 			currentKv->key = string + start;
 			currentKv->keyLength = length;
@@ -317,7 +270,8 @@ startOfFunction:
 		info.bytesUsed += length + 1;
 		
 	}
-	parent->child = lastKv;
+	if(lastKv)
+		lastKv->next = nullptr;
 	return;
 }
 
@@ -325,37 +279,36 @@ startOfFunction:
 
 CKeyValueRoot* CKeyValueRoot::Parse(char* string, int length)
 {
+
+	CKeyValueRoot* kvr = new CKeyValueRoot();
+
 	//convient way to share variables
 	CKeyValueInfo info{ 0,length,0,0 };
 
+	
 	info.currentPool = new CKeyValueMemoryPool(POOL_MAX_COUNT_INCREMENT, 0);
 
-	kvObject_t parent{ 0,0 };
+	kvObject_t parent{ 0,0};
+	parent.hasChildren = true;
 	ParseString(string, info, &parent);
 
+	kvr->currentPool = info.currentPool;
 	
 	//we've counted up all of our objects that need allocation
 	//allocate them now
-	char* memoryBlock = static_cast<char*>(malloc(info.bytesUsed));
-	CKeyValue* kvBlock = static_cast<CKeyValue*>(malloc(info.keyvaluesUsed * sizeof(CKeyValue)));
-
-	CKeyValueRoot* kv = new CKeyValueRoot();
-	kv->key = 0;
-	kv->memoryBlock = memoryBlock;
-	kv->kvBlock = kvBlock;
-
-	BuildData(kv, &parent, memoryBlock, kvBlock);
-
-	CKeyValueMemoryPool::Delete(info.currentPool);
+	kvr->memoryBlock = static_cast<char*>(malloc(info.bytesUsed));
 
 
-	return kv;
+	BuildData(&parent, kvr->memoryBlock);
+
+	kvr->rootKV = parent;
+
+	return kvr;
 }
 
 
 CKeyValueRoot::~CKeyValueRoot()
 {
-
 	free(memoryBlock);
-	free(kvBlock);
+	CKeyValueMemoryPool::Delete(currentPool);
 }

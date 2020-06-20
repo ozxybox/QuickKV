@@ -3,43 +3,56 @@
 #include <stddef.h>
 
 
-
-
-class CKeyValue
+struct kvObject_t
 {
-public:
-
-	char* key;
-	size_t keyLength;
+	const char* key;
+	int keyLength;
 
 	union
 	{
-		char* value;
-		CKeyValue* children;
+		kvObject_t* child;
+		const char* value;
 	};
 
 	union
 	{
-		size_t childCount;
-		size_t valueLength;
+		int childCount;
+		int valueLength;
 	};
 
-	bool hasChild;
+	kvObject_t* lastChild;
+	bool hasChildren;
 
-	CKeyValue* parent;
+	kvObject_t* parent;
+	kvObject_t* next = 0;
+
 };
 
-class CKeyValueRoot : public CKeyValue
+
+class CKeyValueMemoryPool
+{
+public:
+	inline CKeyValueMemoryPool(int size, CKeyValueMemoryPool* last);
+	static void Delete(CKeyValueMemoryPool* last);
+
+	int maxObjectsInPool;
+	int objectCount;
+	kvObject_t* memoryPool;
+	CKeyValueMemoryPool* lastPool;
+};
+
+class CKeyValueRoot
 {
 public:
 	static CKeyValueRoot* Parse(char* string, int length);
 
 	~CKeyValueRoot();
 
+	kvObject_t rootKV;
 private:
 	
 	char* memoryBlock;
-	CKeyValue* kvBlock;
+	CKeyValueMemoryPool* currentPool;
 
 };
 
