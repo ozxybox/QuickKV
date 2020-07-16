@@ -1,6 +1,7 @@
 # QuickKV
 #### A pretty fast monster that I made for fun for a KeyValue parsing competition
-I highly suggest against using this, as it's not really made for anything other than just parsing, and the code is not my finest work. 
+I highly suggest against using this, as it's not really made for anything other than just parsing, and the code is not my finest work.</br>
+If you want something actually usable, check out SpeedyKeyV https://github.com/ozxybox/SpeedyKeyV. It's only slightly slower than BulletKV, but works much bettter than all branches here.
 
 ### master: QuickKV
 - Pretty fast
